@@ -37,14 +37,32 @@ export function isValidEmail(email: string): boolean {
   return EMAIL_RE.test(email);
 }
 
+function normalizeHeader(h: string): string {
+  return h
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_")
+    .replace(/[^a-z_]/g, "");
+}
+
+/** Excel in many locales (incl. Romanian) exports `;`-separated CSVs. Detect it. */
+function detectDelimiter(firstLine: string): "," | ";" {
+  const semis = (firstLine.match(/;/g) ?? []).length;
+  const commas = (firstLine.match(/,/g) ?? []).length;
+  return semis > commas ? ";" : ",";
+}
+
 export function parseCsv(content: string): CsvParseResult {
+  const firstLine = content.split(/\r?\n/, 1)[0] ?? "";
   let records: Record<string, string>[];
   try {
     records = parse(content, {
-      columns: (header: string[]) => header.map((h) => h.trim().toLowerCase()),
+      columns: (header: string[]) => header.map(normalizeHeader),
       skip_empty_lines: true,
       trim: true,
       relax_column_count: true,
+      bom: true,
+      delimiter: detectDelimiter(firstLine),
     }) as Record<string, string>[];
   } catch (err) {
     return {
