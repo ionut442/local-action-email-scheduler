@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PLACEHOLDERS } from "@/lib/template-client";
 
 interface Settings {
@@ -9,6 +9,7 @@ interface Settings {
   senderName: string;
   dailyLimit: number;
   sendingEnabled: boolean;
+  bodyIsHtml: boolean;
 }
 
 export function TemplateEditor() {
@@ -19,6 +20,7 @@ export function TemplateEditor() {
   const [testTo, setTestTo] = useState("");
   const [testBusy, setTestBusy] = useState(false);
   const [testMsg, setTestMsg] = useState<string | null>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     fetch("/api/settings")
@@ -31,10 +33,84 @@ export function TemplateEditor() {
           senderName: data.senderName ?? "LocalAction",
           dailyLimit: data.dailyLimit ?? 30,
           sendingEnabled: data.sendingEnabled === true,
+          bodyIsHtml: data.bodyIsHtml === true,
         });
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load."));
   }, []);
+
+  function wrapSelection(before: string, after = "") {
+    const el = bodyRef.current;
+    if (!el || !s) return;
+    const start = el.selectionStart ?? s.body.length;
+    const end = el.selectionEnd ?? s.body.length;
+    const selected = s.body.slice(start, end) || "text";
+    const next = s.body.slice(0, start) + before + selected + after + s.body.slice(end);
+    setS({ ...s, body: next });
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(start + before.length, start + before.length + selected.length);
+    });
+  }
+
+  function insertLink() {
+    const url = window.prompt("Link URL (https://…):", "https://");
+    if (!url) return;
+    const safe = url.replace(/"/g, "%22");
+    wrapSelection(`<a href="${safe}">`, "</a>");
+  }
+
+  function toolbarAction(action: string) {
+    switch (action) {
+      case "bold":
+        wrapSelection("<b>", "</b>");
+        break;
+      case "italic":
+        wrapSelection("<i>", "</i>");
+        break;
+      case "underline":
+        wrapSelection("<u>", "</u>");
+        break;
+      case "link":
+        insertLink();
+        break;
+      case "heading":
+        wrapSelection("<h2>", "</h2>");
+        break;
+      case "list":
+        insertList();
+        break;
+      case "break":
+        wrapSelection("<br>");
+        break;
+    }
+  }
+
+  const TOOLBAR: { label: string; title: string; action: string }[] = [
+    { label: "B", title: "Bold", action: "bold" },
+    { label: "I", title: "Italic", action: "italic" },
+    { label: "U", title: "Underline", action: "underline" },
+    { label: "Link", title: "Insert link", action: "link" },
+    { label: "H2", title: "Heading", action: "heading" },
+    { label: "• List", title: "Bullet list", action: "list" },
+    { label: "¶ Break", title: "Line break", action: "break" },
+  ];
+
+  function insertList() {
+    const el = bodyRef.current;
+    if (!el || !s) return;
+    const start = el.selectionStart ?? s.body.length;
+    const end = el.selectionEnd ?? s.body.length;
+    const selected = s.body.slice(start, end) || "First item\nSecond item";
+    const items = selected
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .map((l) => `  <li>${l}</li>`)
+      .join("\n");
+    const next = s.body.slice(0, start) + `<ul>\n${items}\n</ul>` + s.body.slice(end);
+    setS({ ...s, body: next });
+  }
 
   async function save() {
     if (!s) return;
@@ -78,8 +154,10 @@ export function TemplateEditor() {
   if (error && !s) return <p className="text-sm text-red-700">{error}</p>;
   if (!s) return <p className="text-sm text-zinc-500">Loading…</p>;
 
-  const previewSubject = renderPreview(s.subject, true);
-  const previewBody = renderPreview(s.body, false);
+  const previewSubject = renderPreviewSubject(s.subject);
+  const previewBody = s.bodyIsHtml
+    ? renderPreviewHtml(s.body)
+    : renderPreviewText(s.body);
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -101,13 +179,57 @@ export function TemplateEditor() {
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium">Email body (plain text)</label>
+          <div className="mb-1 flex items-center justify-between">
+            <label className="block text-sm font-medium">Email body</label>
+            <div className="flex rounded-md border border-zinc-300 text-xs">
+              <button
+                type="button"
+                onClick={() => setS({ ...s, bodyIsHtml: false })}
+                className={`px-2.5 py-1 ${!s.bodyIsHtml ? "bg-zinc-900 text-white" : "text-zinc-600"}`}
+              >
+                Plain text
+              </button>
+              <button
+                type="button"
+                onClick={() => setS({ ...s, bodyIsHtml: true })}
+                className={`px-2.5 py-1 ${s.bodyIsHtml ? "bg-zinc-900 text-white" : "text-zinc-600"}`}
+              >
+                HTML
+              </button>
+            </div>
+          </div>
+          {s.bodyIsHtml && (
+            <div className="mb-1 flex flex-wrap gap-1">
+              {TOOLBAR.map((b) => (
+                <button
+                  key={b.label}
+                  type="button"
+                  title={b.title}
+                  onClick={() => toolbarAction(b.action)}
+                  className="rounded border border-zinc-300 px-2 py-0.5 text-xs font-semibold hover:bg-zinc-50"
+                >
+                  {b.label}
+                </button>
+              ))}
+            </div>
+          )}
           <textarea
+            ref={bodyRef}
             value={s.body}
             onChange={(e) => setS({ ...s, body: e.target.value })}
             rows={14}
+            placeholder={
+              s.bodyIsHtml
+                ? "<p>Hi {{business_name}},</p>\n<p>We help …</p>"
+                : "Hi {{business_name}},\n\nWe help …"
+            }
             className="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm"
           />
+          <p className="mt-1 text-xs text-zinc-500">
+            {s.bodyIsHtml
+              ? "HTML mode: tags are sent as-is. The plain-text version is generated automatically."
+              : "Plain-text mode: line breaks become paragraphs, links become clickable."}
+          </p>
         </div>
         <div className="rounded-md bg-zinc-50 p-3 text-xs text-zinc-600">
           <p className="mb-1 font-semibold">Supported placeholders:</p>
@@ -165,9 +287,6 @@ export function TemplateEditor() {
             className="prose-sm px-4 py-3 text-sm"
             dangerouslySetInnerHTML={{ __html: previewBody }}
           />
-          <div className="border-t border-zinc-100 px-4 py-2 text-xs text-zinc-400">
-            You can opt out of future emails here: <span className="underline">Unsubscribe</span>
-          </div>
         </div>
       </div>
     </div>
@@ -182,6 +301,13 @@ const SAMPLE: Record<string, string> = {
   country: "Germany",
 };
 
+function substitute(template: string): string {
+  return template.replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (m, k: string) => {
+    const key = k.toLowerCase();
+    return key in SAMPLE ? SAMPLE[key] : m;
+  });
+}
+
 function esc(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -190,14 +316,17 @@ function esc(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function renderPreview(template: string, isSubject: boolean): string {
-  const rendered = template.replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (m, k: string) => {
-    const key = k.toLowerCase();
-    return key in SAMPLE ? SAMPLE[key] : m;
-  });
-  if (isSubject) return esc(rendered);
-  return esc(rendered)
+function renderPreviewSubject(template: string): string {
+  return esc(substitute(template).replace(/<[^>]*>/g, ""));
+}
+
+function renderPreviewText(template: string): string {
+  return esc(substitute(template))
     .split(/\n\n+/)
     .map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`)
     .join("\n");
+}
+
+function renderPreviewHtml(template: string): string {
+  return substitute(template);
 }

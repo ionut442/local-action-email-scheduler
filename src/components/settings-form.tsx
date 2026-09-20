@@ -8,6 +8,7 @@ interface Settings {
   senderName: string;
   dailyLimit: number;
   sendingEnabled: boolean;
+  bodyIsHtml: boolean;
 }
 
 export function SettingsForm() {
@@ -27,6 +28,7 @@ export function SettingsForm() {
           senderName: data.senderName ?? "LocalAction",
           dailyLimit: data.dailyLimit ?? 30,
           sendingEnabled: data.sendingEnabled === true,
+          bodyIsHtml: data.bodyIsHtml === true,
         });
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load."));

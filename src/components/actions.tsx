@@ -60,12 +60,14 @@ export function SendingToggle({
   subject,
   body,
   senderName,
+  bodyIsHtml,
 }: {
   initial: boolean;
   dailyLimit: number;
   subject: string;
   body: string;
   senderName: string;
+  bodyIsHtml: boolean;
 }) {
   const [on, setOn] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -81,7 +83,7 @@ export function SendingToggle({
       const res = await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject, body, senderName, dailyLimit, sendingEnabled: next }),
+        body: JSON.stringify({ subject, body, senderName, dailyLimit, sendingEnabled: next, bodyIsHtml }),
       });
       if (res.ok) {
         setOn(next);

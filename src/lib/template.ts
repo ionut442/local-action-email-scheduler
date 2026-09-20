@@ -50,14 +50,6 @@ export function textToHtml(text: string): string {
     .join("\n");
 }
 
-export function buildUnsubscribeFooterHtml(unsubscribeUrl: string): string {
-  return `<p style="font-size:12px;color:#888;margin-top:24px;">You can opt out of future emails here: <a href="${escapeHtml(unsubscribeUrl)}">Unsubscribe</a></p>`;
-}
-
-export function buildUnsubscribeFooterText(unsubscribeUrl: string): string {
-  return `\n\n--\nYou can opt out of future emails here: ${unsubscribeUrl}`;
-}
-
 export function getAppUrl(): string {
   const url = (process.env.APP_URL ?? "").trim().replace(/\/+$/, "");
   if (url) return url;
@@ -67,4 +59,33 @@ export function getAppUrl(): string {
 
 export function unsubscribeUrlFor(token: string): string {
   return `${getAppUrl()}/unsubscribe?token=${encodeURIComponent(token)}`;
+}
+
+/** Strip all HTML tags (used for subjects and plain-text fallbacks). */
+export function stripTags(s: string): string {
+  return s.replace(/<[^>]*>/g, "");
+}
+
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+/** Convert an HTML body to a reasonable plain-text version. */
+export function htmlToText(html: string): string {
+  return decodeEntities(
+    stripTags(
+      html
+        .replace(/<(br|p|div|li|h[1-6]|tr)[^>]*>/gi, "\n")
+        .replace(/<\/(p|div|h[1-6]|ul|ol|table|tr)>/gi, "\n")
+    )
+  )
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .join("\n");
 }

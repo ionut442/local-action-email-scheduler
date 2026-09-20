@@ -3,9 +3,9 @@ import { db, ensureSchema } from "@/db";
 import { contacts, emailLogs, emailSettings } from "@/db/schema";
 import { getTransporter, safeSmtpError } from "./mailer";
 import {
-  buildUnsubscribeFooterHtml,
-  buildUnsubscribeFooterText,
   renderTemplate,
+  stripTags,
+  htmlToText,
   textToHtml,
   unsubscribeUrlFor,
 } from "./template";
@@ -197,11 +197,14 @@ export async function runScheduler(): Promise<SchedulerResult> {
       city: contact.city,
       country: contact.country,
     };
-    const subject = renderTemplate(settings.subject, vars);
-    const textBody = renderTemplate(settings.body, vars);
+    const subject = stripTags(renderTemplate(settings.subject, vars));
+    const rendered = renderTemplate(settings.body, vars);
+    // HTML mode: body is used as-is (admin-authored); plain mode: convert.
+    // No visible unsubscribe footer; List-Unsubscribe headers below still
+    // give mailbox providers a native opt-out button.
+    const html = settings.bodyIsHtml ? rendered : textToHtml(rendered);
+    const text = settings.bodyIsHtml ? htmlToText(rendered) : rendered;
     const unsubUrl = unsubscribeUrlFor(contact.unsubscribeToken);
-    const html = `${textToHtml(textBody)}${buildUnsubscribeFooterHtml(unsubUrl)}`;
-    const text = `${textBody}${buildUnsubscribeFooterText(unsubUrl)}`;
 
     try {
        
@@ -233,7 +236,7 @@ export async function runScheduler(): Promise<SchedulerResult> {
         contactId: contact.id,
         recipient: contact.email,
         subjectSnapshot: subject,
-        bodySnapshot: textBody,
+        bodySnapshot: rendered,
         status: "sent",
         smtpMessageId:
           typeof info?.messageId === "string" ? info.messageId : null,
@@ -258,7 +261,7 @@ export async function runScheduler(): Promise<SchedulerResult> {
         contactId: contact.id,
         recipient: contact.email,
         subjectSnapshot: subject,
-        bodySnapshot: textBody,
+        bodySnapshot: rendered,
         status: "failed",
         error: message,
         sentAt: now,

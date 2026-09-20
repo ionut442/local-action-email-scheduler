@@ -3,7 +3,7 @@ import { db, ensureSchema } from "@/db";
 import { emailSettings } from "@/db/schema";
 import { getTransporter, safeSmtpError } from "@/lib/mailer";
 import { requireAdmin } from "@/lib/require-admin";
-import { renderTemplate, textToHtml } from "@/lib/template";
+import { renderTemplate, stripTags, htmlToText, textToHtml } from "@/lib/template";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -48,11 +48,13 @@ export async function POST(req: Request) {
       city: "Berlin",
       country: "Germany",
     };
-    const subject = `[TEST] ${renderTemplate(settings.subject, sample)}`;
+    const subject = `[TEST] ${stripTags(renderTemplate(settings.subject, sample))}`;
     const rendered = renderTemplate(settings.body, sample);
+    const bodyText = settings.bodyIsHtml ? htmlToText(rendered) : rendered;
+    const bodyHtml = settings.bodyIsHtml ? rendered : textToHtml(rendered);
     const text =
-      `THIS IS A TEST EMAIL. No contact was modified and the daily limit was not affected.\n\n${rendered}`;
-    const html = `<p style="background:#fef3c7;border:1px solid #f59e0b;padding:8px 12px;font-size:13px;"><strong>TEST EMAIL</strong> — no contact was modified and the daily limit was not affected.</p>${textToHtml(rendered)}`;
+      `THIS IS A TEST EMAIL. No contact was modified and the daily limit was not affected.\n\n${bodyText}`;
+    const html = `<p style="background:#fef3c7;border:1px solid #f59e0b;padding:8px 12px;font-size:13px;"><strong>TEST EMAIL</strong> — no contact was modified and the daily limit was not affected.</p>${bodyHtml}`;
 
     const fromName = settings.senderName || "LocalAction";
     const fromUser = (process.env.SMTP_USER ?? "").trim();
