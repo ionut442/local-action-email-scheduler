@@ -52,6 +52,8 @@ export const emailSettings = pgTable("email_settings", {
   senderName: text("sender_name").notNull().default("LocalAction"),
   dailyLimit: integer("daily_limit").notNull().default(30),
   sendingEnabled: boolean("sending_enabled").notNull().default(false),
+  // Pacing: earliest time the next email may go out (set after every attempt).
+  nextSendAt: timestamp("next_send_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

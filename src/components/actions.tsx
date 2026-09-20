@@ -21,6 +21,10 @@ export function RunSchedulerButton() {
         setResult(`Error: ${data.error ?? "scheduler failed"}`);
       } else if (data.ran === false && data.reason === "sending_disabled") {
         setResult("Sending is OFF — nothing was sent. Enable it in Settings first.");
+      } else if (data.reason === "waiting_interval" && data.nextSendAt) {
+        setResult(
+          `Not due yet — next email scheduled around ${new Date(data.nextSendAt).toLocaleString()}. One email goes out per run, spaced across the day.`
+        );
       } else {
         setResult(
           `Done: ${data.sent} sent, ${data.failed} failed` +

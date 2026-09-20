@@ -13,6 +13,9 @@ import {
 /** Contacts stuck in `processing` longer than this are assumed orphaned by a crashed run. */
 export const STALE_PROCESSING_MINUTES = 30;
 
+/** Random spacing jitter applied to the send interval, in minutes. */
+export const MAX_JITTER_MINUTES = 10;
+
 export interface SchedulerResult {
   ran: boolean;
   reason?: string;
@@ -21,7 +24,21 @@ export interface SchedulerResult {
   skipped?: number;
   dailyLimit?: number;
   sentToday?: number;
+  /** ISO timestamp of the earliest next send (pacing). */
+  nextSendAt?: string | null;
   errors: string[];
+}
+
+/**
+ * Next send time = now + (1440 / dailyLimit) ± up-to-10-min jitter.
+ * Spreads the daily quota across ~24h so emails go out ~48 min apart
+ * (at the default limit of 30) instead of in one burst.
+ */
+export function computeNextSendAt(from: Date, dailyLimit: number): Date {
+  const base = 1440 / Math.max(1, dailyLimit);
+  const jitter = (Math.random() * 2 - 1) * MAX_JITTER_MINUTES;
+  const waitMin = Math.max(1, base + jitter);
+  return new Date(from.getTime() + waitMin * 60_000);
 }
 
 /**
@@ -57,7 +74,7 @@ export async function runScheduler(): Promise<SchedulerResult> {
     };
   }
 
-  const dailyLimit = Math.max(0, settings.dailyLimit ?? 30);
+  const dailyLimit = Math.max(1, Math.min(500, settings.dailyLimit ?? 30));
 
   // Recover orphaned `processing` rows from crashed runs.
   await database
@@ -111,13 +128,31 @@ export async function runScheduler(): Promise<SchedulerResult> {
     };
   }
 
-  // Select pending contacts only, oldest first.
+  // Pacing: at most one email per run, no earlier than the scheduled time.
+  // The cron ticks every 15 min; each due run sends a single email, which
+  // spreads the daily quota across ~24h (e.g. ~48 min apart at limit 30).
+  const now = new Date();
+  const scheduled = settings.nextSendAt ? new Date(settings.nextSendAt) : null;
+  if (scheduled && now < scheduled) {
+    return {
+      ran: false,
+      reason: "waiting_interval",
+      sent: 0,
+      failed: 0,
+      dailyLimit,
+      sentToday,
+      nextSendAt: scheduled.toISOString(),
+      errors: [],
+    };
+  }
+
+  // Select pending contacts only, oldest first. One per run (see pacing).
   const batch = await database
     .select()
     .from(contacts)
     .where(eq(contacts.status, "pending"))
     .orderBy(contacts.createdAt)
-    .limit(remaining);
+    .limit(1);
 
   if (batch.length === 0) {
     return {
@@ -127,6 +162,7 @@ export async function runScheduler(): Promise<SchedulerResult> {
       failed: 0,
       dailyLimit,
       sentToday,
+      nextSendAt: scheduled ? scheduled.toISOString() : null,
       errors: [],
     };
   }
@@ -233,12 +269,24 @@ export async function runScheduler(): Promise<SchedulerResult> {
     }
   }
 
+  // Schedule the next send (interval + jitter), whether this attempt
+  // succeeded or failed, so spacing holds even across failures.
+  const attempted = sent + failed > 0;
+  const next = attempted ? computeNextSendAt(new Date(), dailyLimit) : null;
+  if (next) {
+    await database
+      .update(emailSettings)
+      .set({ nextSendAt: next, updatedAt: new Date() })
+      .where(eq(emailSettings.id, 1));
+  }
+
   return {
     ran: true,
     sent,
     failed,
     dailyLimit,
     sentToday,
+    nextSendAt: next ? next.toISOString() : scheduled ? scheduled.toISOString() : null,
     errors,
   };
 }

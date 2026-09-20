@@ -69,6 +69,20 @@ export default async function DashboardPage() {
                 <dd className="font-medium">{s?.dailyLimit ?? 30}</dd>
               </div>
               <div className="flex gap-2">
+                <dt className="w-28 text-zinc-500">Spacing</dt>
+                <dd className="font-medium">
+                  ~{Math.round(1440 / Math.max(1, s?.dailyLimit ?? 30))} min apart (±10 min)
+                </dd>
+              </div>
+              {Boolean(s?.sendingEnabled) && s?.nextSendAt && (
+                <div className="flex gap-2">
+                  <dt className="w-28 text-zinc-500">Next email</dt>
+                  <dd className="font-medium">
+                    ~{new Date(s.nextSendAt).toLocaleString()}
+                  </dd>
+                </div>
+              )}
+              <div className="flex gap-2">
                 <dt className="w-28 text-zinc-500">Subject</dt>
                 <dd className="truncate font-medium">{s?.subject || "(not set)"}</dd>
               </div>

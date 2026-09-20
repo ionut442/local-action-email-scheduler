@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS email_settings (
   sender_name TEXT NOT NULL DEFAULT 'LocalAction',
   daily_limit INTEGER NOT NULL DEFAULT 30,
   sending_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  next_send_at TIMESTAMPTZ,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE TABLE IF NOT EXISTS email_logs (
@@ -66,6 +67,7 @@ CREATE TABLE IF NOT EXISTS email_logs (
 CREATE INDEX IF NOT EXISTS contacts_status_idx ON contacts (status);
 CREATE INDEX IF NOT EXISTS contacts_email_idx ON contacts (email);
 CREATE INDEX IF NOT EXISTS email_logs_created_idx ON email_logs (created_at DESC);
+ALTER TABLE email_settings ADD COLUMN IF NOT EXISTS next_send_at TIMESTAMPTZ;
 `;
 
 export async function ensureSchema() {
