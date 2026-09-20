@@ -1,0 +1,9 @@
+name = "local-action-email-pinger"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+[vars]
+APP_URL = "https://local-action-email-scheduler.vercel.app"
+
+[triggers]
+crons = ["*/15 * * * *"]

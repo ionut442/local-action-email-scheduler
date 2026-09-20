@@ -72,13 +72,7 @@ wait = 1440 / daily_limit  ±  up-to-10-min random jitter   (min 1 min)
 
 At the default limit of 30 this averages ~48 min between emails (38–58 min with jitter), spreading the quota across ~24h. The dashboard shows the spacing and the next scheduled send. If a run fires before the time is due, it sends nothing (`waiting_interval`).
 
-> **Hobby plan note:** Vercel only allows once-daily cron schedules on Hobby (sub-daily needs Pro), and the built-in daily tick alone would drip just ~1 email/day with pacing active. So for true spaced sending on Hobby, add a **free external cron** (e.g. cron-job.org) pinging the following URL every 15 minutes:
->
-> ```
-> GET https://local-action-email-scheduler.vercel.app/api/cron/send?secret=YOUR_CRON_SECRET
-> ```
->
-> (use the `CRON_SECRET` value from your Vercel env vars). The endpoint logic is identical to Vercel Cron — one email per due run, daily cap enforced. Alternative: upgrade the Vercel project to Pro and change `vercel.json` to `"schedule": "*/15 * * * *"`. The dashboard "Run scheduler now" button also sends a single due email per click using the same logic.
+> **Cron trigger (already set up):** Vercel only allows once-daily cron schedules on Hobby (sub-daily needs Pro), so the 15-minute tick comes from a free **Cloudflare Worker** in `cloudflare-cron/` (deployed as `local-action-email-pinger`, schedule `*/15 * * * *`). It pings `GET /api/cron/send?secret=CRON_SECRET` — the endpoint enforces the daily cap and spacing, so the worker is a dumb trigger. If you ever move to Vercel Pro, you can drop the worker and set `vercel.json` to `"schedule": "*/15 * * * *"`. The dashboard "Run scheduler now" button also sends a single due email per click using the same logic.
 
 ## Deployment notes
 
