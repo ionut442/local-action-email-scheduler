@@ -60,7 +60,7 @@ Rules: trim values, lowercase emails, validate format, skip duplicates (includin
 
 ## Vercel cron
 
-`vercel.json` schedules `GET /api/cron/send` every 15 min (`*/15 * * * *`). Auth: `Authorization: Bearer $CRON_SECRET` (Vercel sends this automatically when `CRON_SECRET` is set), `x-cron-secret` header, or `?secret=`. Logic (`src/lib/scheduler.ts`) is frequency-independent: it counts today's successful sends from `email_logs`, caps at `daily_limit`, selects `pending` only, claims via `processing` state, sends sequentially (Node runtime, fully awaited), recovers stale `processing` rows after 30 min, and never resends `sent`/`unsubscribed`. "Run scheduler now" calls the same function.
+`vercel.json` registers `GET /api/cron/send` on a daily schedule (`0 9 * * *`) as a fallback heartbeat. Auth: `Authorization: Bearer $CRON_SECRET` (Vercel sends this automatically when `CRON_SECRET` is set), `x-cron-secret` header, or `?secret=`. Logic (`src/lib/scheduler.ts`) is frequency-independent: it counts today's successful sends from `email_logs`, caps at `daily_limit`, selects `pending` only, claims via `processing` state, sends sequentially (Node runtime, fully awaited), recovers stale `processing` rows after 30 min, and never resends `sent`/`unsubscribed`. "Run scheduler now" calls the same function.
 
 ## Send pacing (spaced emails)
 
@@ -72,7 +72,13 @@ wait = 1440 / daily_limit  ±  up-to-10-min random jitter   (min 1 min)
 
 At the default limit of 30 this averages ~48 min between emails (38–58 min with jitter), spreading the quota across ~24h. The dashboard shows the spacing and the next scheduled send. If a run fires before the time is due, it sends nothing (`waiting_interval`).
 
-> **Hobby plan note:** Vercel runs sub-daily cron schedules only on Pro/Enterprise — on Hobby the built-in cron fires at most once daily, which would drip just ~1 email/day. Two options: upgrade the Vercel project to Pro, or keep Hobby and ping `GET /api/cron/send?secret=YOUR_CRON_SECRET` every 15 min from a free external cron service (e.g. cron-job.org). The endpoint logic is identical either way.
+> **Hobby plan note:** Vercel only allows once-daily cron schedules on Hobby (sub-daily needs Pro), and the built-in daily tick alone would drip just ~1 email/day with pacing active. So for true spaced sending on Hobby, add a **free external cron** (e.g. cron-job.org) pinging the following URL every 15 minutes:
+>
+> ```
+> GET https://local-action-email-scheduler.vercel.app/api/cron/send?secret=YOUR_CRON_SECRET
+> ```
+>
+> (use the `CRON_SECRET` value from your Vercel env vars). The endpoint logic is identical to Vercel Cron — one email per due run, daily cap enforced. Alternative: upgrade the Vercel project to Pro and change `vercel.json` to `"schedule": "*/15 * * * *"`. The dashboard "Run scheduler now" button also sends a single due email per click using the same logic.
 
 ## Deployment notes
 
