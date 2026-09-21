@@ -101,20 +101,18 @@ const HEADER_PART =
   "HEADER.FIELDS (FROM TO SUBJECT DATE MESSAGE-ID IN-REPLY-TO REFERENCES AUTO-SUBMITTED PRECEDENCE X-AUTOREPLY X-AUTORESPOND)";
 
 function fetchCandidates(imap: Imap, uids: number[]): Promise<InboundCandidate[]> {
-  return fetchCandidatesWith(imap, uids, true).catch((err) => {
-    // Some IMAP servers reject partial body ranges (BODY[TEXT]<0.N>).
-    // Fall back to the full text part and truncate client-side.
-    if (/invalid body/i.test(err instanceof Error ? err.message : String(err))) {
-      return fetchCandidatesWith(imap, uids, false);
-    }
-    throw err;
-  });
+  // Note: node-imap wraps each `bodies` entry as BODY.PEEK[<entry>] itself,
+  // so entries must be bare section specs (e.g. TEXT) — never pre-wrapped.
+  // Byte ranges (TEXT<0.N>) are intentionally not used: node-imap places the
+  // range inside the brackets (invalid) and strict servers reject it. The
+  // full text part is fetched and truncated client-side instead.
+  return fetchCandidatesWith(imap, uids, [HEADER_PART, "TEXT"]);
 }
 
 function fetchCandidatesWith(
   imap: Imap,
   uids: number[],
-  partial: boolean
+  parts: string[]
 ): Promise<InboundCandidate[]> {
   return new Promise((resolve, reject) => {
     const out: InboundCandidate[] = [];
@@ -122,9 +120,8 @@ function fetchCandidatesWith(
       resolve(out);
       return;
     }
-    const textPart = partial ? `BODY.PEEK[TEXT]<0.${FETCH_TEXT_BYTES}>` : "BODY.PEEK[TEXT]";
     const fetcher = imap.fetch(uids, {
-      bodies: [HEADER_PART, textPart],
+      bodies: parts,
       struct: false,
     });
     fetcher.on("message", (msg, seqno) => {
@@ -140,8 +137,10 @@ function fetchCandidatesWith(
           buf += chunk.toString("utf8");
         });
         stream.once("end", () => {
-          if (info.which !== HEADER_PART) textRaw += buf;
-          else headerRaw += buf;
+          // `which` varies by server (HEADER.FIELDS (...), BODY[TEXT]<0>, …):
+          // anything header-like goes to the header buffer, rest is text.
+          if (/^header/i.test(info.which)) headerRaw += buf;
+          else textRaw += buf;
         });
       });
       msg.once("end", () => {
