@@ -254,7 +254,8 @@ export function TemplateEditor() {
         <div className="mt-4 rounded-md border border-zinc-200 p-3">
           <h3 className="text-sm font-semibold">Send test email</h3>
           <p className="mb-2 text-xs text-zinc-500">
-            Test emails don&apos;t affect the daily limit or any contact.
+            Test emails send the last <strong>saved</strong> template and don&apos;t affect
+            the daily limit or any contact.
           </p>
           <div className="flex gap-2">
             <input
