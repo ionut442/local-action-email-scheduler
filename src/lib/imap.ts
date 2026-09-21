@@ -108,14 +108,15 @@ export async function testImapConnection(): Promise<{
   let imap: Imap | null = null;
   try {
     imap = await connectImap(cfg);
-    const { uidvalidity } = await openInbox(imap, true);
-    const status = await new Promise<{ messages: number }>((resolve, reject) => {
-      imap!.status("INBOX", (err, box) => {
-        if (err) reject(err);
-        else resolve({ messages: box.messages.total });
-      });
-    });
-    return { ok: true, messages: status.messages, uidvalidity };
+    const box = await new Promise<{ messages: { total: number }; uidvalidity: number }>(
+      (resolve, reject) => {
+        imap!.openBox("INBOX", true, (err, box) => {
+          if (err) reject(err);
+          else resolve(box);
+        });
+      }
+    );
+    return { ok: true, messages: box.messages.total, uidvalidity: box.uidvalidity };
   } catch (err) {
     return { ok: false, error: redactImapError(err) };
   } finally {
