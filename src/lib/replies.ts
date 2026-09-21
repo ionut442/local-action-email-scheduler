@@ -64,8 +64,28 @@ export function isAutomaticReply(input: {
 }
 
 export function snippetFromText(raw: string): string {
-  return raw
-    .slice(0, FETCH_TEXT_BYTES * 2)
+  // Drop MIME framing lines (boundaries, part headers) so the snippet starts
+  // at the actual message text. A boundary is `--` followed by non-space
+  // (the `-- ` signature separator is preserved).
+  const lines = raw.slice(0, FETCH_TEXT_BYTES * 2).split(/\r?\n/);
+  const clean: string[] = [];
+  let started = false;
+  for (const line of lines) {
+    const t = line.trim();
+    if (!started) {
+      if (!t) continue;
+      if (/^--\S/.test(t)) continue;
+      if (/^content-(type|transfer-encoding|disposition|id|description|location)\s*:/i.test(t)) continue;
+      if (/^this is a multi-part message/i.test(t)) continue;
+      started = true;
+    } else {
+      if (/^--\S/.test(t)) continue;
+      if (/^content-(type|transfer-encoding|disposition|id|description|location)\s*:/i.test(t)) continue;
+    }
+    clean.push(line);
+  }
+  return clean
+    .join("\n")
     .replace(/<[^>]*>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
