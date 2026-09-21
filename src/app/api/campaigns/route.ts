@@ -21,21 +21,24 @@ export async function GET() {
       .from(emailCampaigns)
       .orderBy(asc(emailCampaigns.id));
     const active = campaigns.find((c) => c.active) ?? null;
+    // Editable campaign: the active one, otherwise the newest (so variants can
+    // be prepared before activation without creating duplicates on every save).
+    const editable = active ?? (campaigns.length > 0 ? campaigns[campaigns.length - 1] : null);
     let subjects: typeof emailSubjectVariants.$inferSelect[] = [];
     let bodies: typeof emailBodyVariants.$inferSelect[] = [];
     let distribution = null;
-    if (active) {
+    if (editable) {
       subjects = await database
         .select()
         .from(emailSubjectVariants)
-        .where(eq(emailSubjectVariants.campaignId, active.id))
+        .where(eq(emailSubjectVariants.campaignId, editable.id))
         .orderBy(asc(emailSubjectVariants.sortOrder), asc(emailSubjectVariants.id));
       bodies = await database
         .select()
         .from(emailBodyVariants)
-        .where(eq(emailBodyVariants.campaignId, active.id))
+        .where(eq(emailBodyVariants.campaignId, editable.id))
         .orderBy(asc(emailBodyVariants.sortOrder), asc(emailBodyVariants.id));
-      distribution = await getVariantDistribution(active.id);
+      distribution = await getVariantDistribution(editable.id);
     }
     const settingsRows = await database
       .select({
@@ -48,6 +51,7 @@ export async function GET() {
     return Response.json({
       campaigns,
       active,
+      editable,
       subjects,
       bodies,
       distribution,

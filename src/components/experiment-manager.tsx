@@ -24,6 +24,7 @@ interface BodyVar {
 interface CampaignData {
   campaigns: { id: number; name: string; mode: string; active: boolean }[];
   active: { id: number; name: string; mode: string; active: boolean } | null;
+  editable: { id: number; name: string; mode: string; active: boolean } | null;
   subjects: SubjectVar[];
   bodies: BodyVar[];
   distribution: {
@@ -81,10 +82,11 @@ export function ExperimentManager() {
 
   function applyData(d: CampaignData) {
     setData(d);
-    if (d.active) {
-      setMode(d.active.mode === "experiment" ? "experiment" : "single");
-      setActive(d.active.active);
-      setName(d.active.name);
+    const editable = d.editable;
+    if (editable) {
+      setMode(editable.mode === "experiment" ? "experiment" : "single");
+      setActive(editable.active);
+      setName(editable.name);
       const sentByS = new Map((d.distribution?.subjects ?? []).map((s) => [s.id, s.sent]));
       const sentByB = new Map((d.distribution?.bodies ?? []).map((b) => [b.id, b.sent]));
       setSubjects(
@@ -140,7 +142,7 @@ export function ExperimentManager() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          campaignId: data?.active?.id,
+          campaignId: data?.editable?.id,
           name,
           mode,
           active,
