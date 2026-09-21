@@ -1,5 +1,6 @@
 export const PLACEHOLDERS = [
   "{{business_name}}",
+  "{{trade}}",
   "{{email}}",
   "{{website}}",
   "{{city}}",
@@ -8,6 +9,7 @@ export const PLACEHOLDERS = [
 
 export interface TemplateVars {
   business_name?: string | null;
+  trade?: string | null;
   email?: string | null;
   website?: string | null;
   city?: string | null;
@@ -17,10 +19,31 @@ export interface TemplateVars {
 export function renderTemplate(template: string, vars: TemplateVars): string {
   const safe: Record<string, string> = {
     business_name: (vars.business_name ?? "").trim(),
+    trade: (vars.trade ?? "").trim(),
     email: (vars.email ?? "").trim(),
     website: (vars.website ?? "").trim(),
     city: (vars.city ?? "").trim(),
     country: (vars.country ?? "").trim(),
+  };
+  return template.replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (match, key: string) => {
+    const k = key.toLowerCase();
+    return k in safe ? safe[k] : match;
+  });
+}
+
+/**
+ * HTML-safe substitution: placeholder values are HTML-escaped so a business
+ * name containing `&` or `<` cannot break the markup. Unknown placeholders
+ * are left intact (never silently dropped).
+ */
+export function renderTemplateHtml(template: string, vars: TemplateVars): string {
+  const safe: Record<string, string> = {
+    business_name: escapeHtml((vars.business_name ?? "").trim()),
+    trade: escapeHtml((vars.trade ?? "").trim()),
+    email: escapeHtml((vars.email ?? "").trim()),
+    website: escapeHtml((vars.website ?? "").trim()),
+    city: escapeHtml((vars.city ?? "").trim()),
+    country: escapeHtml((vars.country ?? "").trim()),
   };
   return template.replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (match, key: string) => {
     const k = key.toLowerCase();

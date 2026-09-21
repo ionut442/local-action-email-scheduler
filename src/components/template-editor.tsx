@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { PLACEHOLDERS } from "@/lib/template-client";
+import { PLACEHOLDERS, SAMPLE_VARS } from "@/lib/template-client";
 
 interface Settings {
   subject: string;
@@ -10,6 +10,8 @@ interface Settings {
   dailyLimit: number;
   sendingEnabled: boolean;
   bodyIsHtml: boolean;
+  signatureHtml: string;
+  signatureText: string;
 }
 
 export function TemplateEditor() {
@@ -30,10 +32,12 @@ export function TemplateEditor() {
         setS({
           subject: data.subject ?? "",
           body: data.body ?? "",
-          senderName: data.senderName ?? "LocalAction",
+          senderName: data.senderName ?? "Denis Oproiu",
           dailyLimit: data.dailyLimit ?? 30,
           sendingEnabled: data.sendingEnabled === true,
           bodyIsHtml: data.bodyIsHtml === true,
+          signatureHtml: data.signatureHtml ?? "",
+          signatureText: data.signatureText ?? "",
         });
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load."));
@@ -281,7 +285,7 @@ export function TemplateEditor() {
         <h3 className="mb-1 text-sm font-medium text-zinc-500">Live preview</h3>
         <div className="rounded-md border border-zinc-200 bg-white">
           <div className="border-b border-zinc-100 px-4 py-3">
-            <p className="text-xs text-zinc-500">From: {s.senderName || "LocalAction"}</p>
+            <p className="text-xs text-zinc-500">From: {s.senderName || "Denis Oproiu"}</p>
             <p className="font-semibold">{previewSubject || "(no subject)"}</p>
           </div>
           <div
@@ -294,18 +298,10 @@ export function TemplateEditor() {
   );
 }
 
-const SAMPLE: Record<string, string> = {
-  business_name: "Example Business",
-  email: "hello@example.com",
-  website: "https://example.com",
-  city: "Berlin",
-  country: "Germany",
-};
-
 function substitute(template: string): string {
   return template.replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (m, k: string) => {
     const key = k.toLowerCase();
-    return key in SAMPLE ? SAMPLE[key] : m;
+    return key in SAMPLE_VARS ? SAMPLE_VARS[key] : m;
   });
 }
 

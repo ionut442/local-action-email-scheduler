@@ -9,12 +9,14 @@
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
+    "db:seed": "tsx scripts/seed-campaign.ts",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
     "csv-parse": "^7.0.2",
     "drizzle-orm": "^0.45.2",
+    "imap": "^0.8.19",
     "next": "16.3.5",
     "nodemailer": "^10.0.10",
     "react": "19.2.8",
@@ -22,6 +24,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/imap": "^0.8.43",
     "@types/node": "^20",
     "@types/nodemailer": "^8.0.2",
     "@types/react": "^19",

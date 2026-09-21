@@ -14,10 +14,14 @@ async function main() {
   for (const file of files) {
     console.log(`Applying ${file}...`);
     const content = readFileSync(join(dir, file), "utf8");
-    // Strip statement-breakpoint comments emitted by drizzle-kit.
+    // Strip full-line SQL comments (they may contain semicolons) and
+    // drizzle-kit statement-breakpoint markers before splitting.
     const cleaned = content
       .split("\n")
-      .filter((l) => !l.trim().startsWith("-->"))
+      .filter((l) => {
+        const t = l.trim();
+        return t && !t.startsWith("--");
+      })
       .join("\n");
     const statements = cleaned
       .split(";")

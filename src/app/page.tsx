@@ -57,8 +57,10 @@ export default async function DashboardPage() {
                 dailyLimit={s?.dailyLimit ?? 30}
                 subject={s?.subject ?? ""}
                 body={s?.body ?? ""}
-                senderName={s?.senderName ?? "LocalAction"}
+                senderName={s?.senderName ?? "Denis Oproiu"}
                 bodyIsHtml={s?.bodyIsHtml ?? false}
+                signatureHtml={s?.signatureHtml ?? ""}
+                signatureText={s?.signatureText ?? ""}
               />
               <span className="text-sm font-medium">
                 Email sending {(s?.sendingEnabled ?? false) ? "ON" : "OFF"}

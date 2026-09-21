@@ -9,6 +9,8 @@ interface Settings {
   dailyLimit: number;
   sendingEnabled: boolean;
   bodyIsHtml: boolean;
+  signatureHtml: string;
+  signatureText: string;
 }
 
 export function SettingsForm() {
@@ -25,10 +27,12 @@ export function SettingsForm() {
         setS({
           subject: data.subject ?? "",
           body: data.body ?? "",
-          senderName: data.senderName ?? "LocalAction",
+          senderName: data.senderName ?? "Denis Oproiu",
           dailyLimit: data.dailyLimit ?? 30,
           sendingEnabled: data.sendingEnabled === true,
           bodyIsHtml: data.bodyIsHtml === true,
+          signatureHtml: data.signatureHtml ?? "",
+          signatureText: data.signatureText ?? "",
         });
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load."));

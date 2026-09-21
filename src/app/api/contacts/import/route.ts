@@ -94,6 +94,7 @@ export async function POST(req: Request) {
     }
     toInsert.push({
       businessName: row.business_name || null,
+      trade: row.trade || null,
       email: row.email,
       website: row.website || null,
       phone: row.phone || null,

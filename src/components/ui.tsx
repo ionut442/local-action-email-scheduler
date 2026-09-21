@@ -4,6 +4,8 @@ const LINKS = [
   { href: "/", label: "Dashboard" },
   { href: "/contacts", label: "Contacts" },
   { href: "/email", label: "Email" },
+  { href: "/results", label: "Results" },
+  { href: "/replies", label: "Replies" },
   { href: "/activity", label: "Activity" },
   { href: "/settings", label: "Settings" },
 ];

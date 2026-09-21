@@ -4,11 +4,17 @@ import { contacts, emailLogs, emailSettings } from "@/db/schema";
 import { getTransporter, safeSmtpError } from "./mailer";
 import {
   renderTemplate,
-  stripTags,
+  renderTemplateHtml,
   htmlToText,
   textToHtml,
   unsubscribeUrlFor,
 } from "./template";
+import {
+  getActiveCampaign,
+  getSignature,
+  resolveContactVariants,
+  type ActiveExperiment,
+} from "./experiment";
 
 /** Contacts stuck in `processing` longer than this are assumed orphaned by a crashed run. */
 export const STALE_PROCESSING_MINUTES = 30;
@@ -59,7 +65,7 @@ export async function runScheduler(): Promise<SchedulerResult> {
   const settings = rows[0] ?? {
     subject: "",
     body: "",
-    senderName: "LocalAction",
+    senderName: "Denis Oproiu",
     dailyLimit: 30,
     sendingEnabled: false,
   };
@@ -116,7 +122,18 @@ export async function runScheduler(): Promise<SchedulerResult> {
     };
   }
 
-  if (!settings.subject.trim() || !settings.body.trim()) {
+  // Resolve sending mode first: an active experiment campaign brings its own
+  // variants; otherwise the legacy single template is used as a fallback.
+  const { campaign, experiment } = await getActiveCampaign();
+  let activeExperiment: ActiveExperiment | null = experiment;
+  if (activeExperiment) {
+    const hasCopy = activeExperiment.subjects.some((s) => s.subject.trim()) &&
+      activeExperiment.bodies.some((b) => b.bodyHtml.trim());
+    if (!hasCopy) activeExperiment = null;
+  }
+  const signature = activeExperiment ? await getSignature() : null;
+
+  if (!activeExperiment && (!settings.subject.trim() || !settings.body.trim())) {
     return {
       ran: false,
       reason: "template_missing",
@@ -180,7 +197,7 @@ export async function runScheduler(): Promise<SchedulerResult> {
     .from(contacts)
     .where(and(inArray(contacts.id, ids), eq(contacts.status, "processing")));
 
-  const fromName = settings.senderName || "LocalAction";
+  const fromName = settings.senderName || "Denis Oproiu";
   const fromUser = (process.env.SMTP_USER ?? "").trim();
   const from = fromUser ? `"${fromName}" <${fromUser}>` : fromName;
 
@@ -192,22 +209,60 @@ export async function runScheduler(): Promise<SchedulerResult> {
   for (const contact of claimed) {
     const vars = {
       business_name: contact.businessName,
+      trade: contact.trade,
       email: contact.email,
       website: contact.website,
       city: contact.city,
       country: contact.country,
     };
-    const subject = stripTags(renderTemplate(settings.subject, vars));
-    const rendered = renderTemplate(settings.body, vars);
-    // HTML mode: body is used as-is (admin-authored); plain mode: convert.
-    // No visible unsubscribe footer; List-Unsubscribe headers below still
-    // give mailbox providers a native opt-out button.
-    const html = settings.bodyIsHtml ? rendered : textToHtml(rendered);
-    const text = settings.bodyIsHtml ? htmlToText(rendered) : rendered;
+
+    // Resolve subject/body: experiment variants (persisted per contact) or
+    // the legacy single template.
+    let subject: string;
+    let html: string;
+    let text: string;
+    let renderedBody: string;
+    const campaignId: number | null = campaign?.id ?? null;
+    let sid: number | null = null;
+    let slab: string | null = null;
+    let bid: number | null = null;
+    let blab: string | null = null;
+
+    if (activeExperiment && signature) {
+      const pair = await resolveContactVariants(contact, activeExperiment);
+      if (!pair) {
+         
+        await database
+          .update(contacts)
+          .set({ status: "pending", updatedAt: new Date() })
+          .where(eq(contacts.id, contact.id));
+        continue;
+      }
+      sid = pair.subject.id;
+      slab = pair.subject.label;
+      bid = pair.body.id;
+      blab = pair.body.label;
+      // Subjects are plain text by authorship: substitute raw values and
+      // never strip — a business name containing `<` must survive intact.
+      subject = renderTemplate(pair.subject.subject, vars);
+      renderedBody = renderTemplateHtml(
+        `${pair.body.bodyHtml}\n${signature.html}`,
+        vars
+      );
+      html = renderedBody;
+      text = htmlToText(renderedBody);
+    } else {
+      subject = renderTemplate(settings.subject, vars);
+      renderedBody = renderTemplate(settings.body, vars);
+      // HTML mode: body is used as-is (admin-authored); plain mode: convert.
+      // No visible unsubscribe footer; List-Unsubscribe headers below still
+      // give mailbox providers a native opt-out button.
+      html = settings.bodyIsHtml ? renderedBody : textToHtml(renderedBody);
+      text = settings.bodyIsHtml ? htmlToText(renderedBody) : renderedBody;
+    }
     const unsubUrl = unsubscribeUrlFor(contact.unsubscribeToken);
 
     try {
-       
       const info = await getTransporter().sendMail({
         from,
         to: contact.email,
@@ -220,7 +275,6 @@ export async function runScheduler(): Promise<SchedulerResult> {
         },
       });
       const now = new Date();
-       
       await database
         .update(contacts)
         .set({
@@ -231,12 +285,16 @@ export async function runScheduler(): Promise<SchedulerResult> {
           updatedAt: now,
         })
         .where(eq(contacts.id, contact.id));
-       
       await database.insert(emailLogs).values({
         contactId: contact.id,
+        campaignId,
+        subjectVariantId: sid,
+        subjectVariantLabel: slab,
+        bodyVariantId: bid,
+        bodyVariantLabel: blab,
         recipient: contact.email,
         subjectSnapshot: subject,
-        bodySnapshot: rendered,
+        bodySnapshot: renderedBody,
         status: "sent",
         smtpMessageId:
           typeof info?.messageId === "string" ? info.messageId : null,
@@ -246,7 +304,6 @@ export async function runScheduler(): Promise<SchedulerResult> {
     } catch (err) {
       const message = safeSmtpError(err);
       const now = new Date();
-       
       await database
         .update(contacts)
         .set({
@@ -256,12 +313,16 @@ export async function runScheduler(): Promise<SchedulerResult> {
           updatedAt: now,
         })
         .where(eq(contacts.id, contact.id));
-       
       await database.insert(emailLogs).values({
         contactId: contact.id,
+        campaignId,
+        subjectVariantId: sid,
+        subjectVariantLabel: slab,
+        bodyVariantId: bid,
+        bodyVariantLabel: blab,
         recipient: contact.email,
         subjectSnapshot: subject,
-        bodySnapshot: rendered,
+        bodySnapshot: renderedBody,
         status: "failed",
         error: message,
         sentAt: now,

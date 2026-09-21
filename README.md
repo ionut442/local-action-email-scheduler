@@ -6,7 +6,9 @@ Private admin tool for LocalAction. Imports business email addresses from CSV an
 
 - **Dashboard** — pending / sent today / sent total / failed / unsubscribed, sending state, recent activity, "Run scheduler now".
 - **Contacts** — CSV import (validation, dedupe, never reactivates unsubscribed), search, status filter, pagination, retry failed.
-- **Email** — edit sender name / subject / body with placeholders + live preview, send test emails.
+- **Email** — single template or Variant Experiment (5 subjects × 5 bodies, balanced rotation, global signature, live previews, combination test-send).
+- **Results** — subject / body / combination reply-rate tables + 5×5 matrix (replies are the metric; no open/click tracking).
+- **Replies** — automatic IMAP reply detection matched to exact sends, manual classification.
 - **Activity** — send logs (sent/failed filter); template snapshots preserved per email.
 - **Settings** — master sending switch, daily limit, sender name.
 
@@ -25,6 +27,11 @@ Private admin tool for LocalAction. Imports business email addresses from CSV an
 | `AUTH_SECRET` | Secret signing the session cookie (`openssl rand -hex 32`) |
 | `CRON_SECRET` | Protects `/api/cron/send` (`openssl rand -hex 32`) |
 | `APP_URL` | Public URL, e.g. `https://your-app.vercel.app` (unsubscribe links) |
+| `IMAP_HOST` | IMAP hostname for reply monitoring (optional) |
+| `IMAP_PORT` | IMAP port (`993` default when secure) |
+| `IMAP_SECURE` | `true` (TLS) |
+| `IMAP_USER` | IMAP login (can be the same mailbox) |
+| `IMAP_PASSWORD` | IMAP password (**never commit**) |
 
 See `.env.example`. SMTP credentials live only in env vars — never in the UI or repo.
 
@@ -41,19 +48,20 @@ Other commands: `npm run lint`, `npx tsc --noEmit`, `npm run build`.
 
 ## Database
 
-- ORM: Drizzle (`src/db/schema.ts`). Migration SQL: `drizzle/0001_init.sql`.
+- ORM: Drizzle (`src/db/schema.ts`). Migration SQL: `drizzle/0001_init.sql` … `0004_experiment.sql`.
 - Apply: `npm run db:migrate` (runs all `drizzle/*.sql` against `DATABASE_URL`), or `npm run db:push`.
+- Seed the experiment campaign once: `npm run db:seed` (creates "Product Research Campaign" + 5 subjects + 5 placeholder bodies, sets signature + sender name; never duplicates).
 - The app also runs idempotent `CREATE TABLE IF NOT EXISTS` on first DB access, so a fresh Neon DB works even if migrations were skipped.
-- `contacts.email` is unique, emails stored lowercase; `unsubscribe_token` unique per contact.
-- `email_settings` single row (`id=1`): `sending_enabled=false`, `daily_limit=30` by default.
-- `email_logs` stores subject/body snapshots per send.
+- `contacts.email` is unique, emails stored lowercase; `unsubscribe_token` unique per contact. Contacts carry optional `trade` plus persisted `subject_variant_id` / `body_variant_id`.
+- `email_settings` single row (`id=1`): `sending_enabled=false`, `daily_limit=30` by default, plus the global signature.
+- `email_campaigns` / `email_subject_variants` / `email_body_variants` hold the experiment; `email_logs` stores campaign + variant IDs/labels plus subject/body snapshots per send; `inbound_replies` stores matched replies (`inbound_message_id` unique); `imap_state` holds the IMAP UID cursor.
 
 ## CSV import
 
 Expected columns (only `email` required):
 
 ```
-business_name,email,website,phone,google_maps_url,city,country
+business_name,trade,email,website,phone,google_maps_url,city,country
 ```
 
 Rules: trim values, lowercase emails, validate format, skip duplicates (including within the file), never reactivate `unsubscribed`, never overwrite `sent`. Returns a summary (`found / imported / duplicates / invalid`). A template is downloadable on the Contacts page. No scraping — you supply the CSV.
@@ -73,6 +81,20 @@ wait = 1440 / daily_limit  ±  up-to-10-min random jitter   (min 1 min)
 At the default limit of 30 this averages ~48 min between emails (38–58 min with jitter), spreading the quota across ~24h. The dashboard shows the spacing and the next scheduled send. If a run fires before the time is due, it sends nothing (`waiting_interval`).
 
 > **Cron trigger (already set up):** Vercel only allows once-daily cron schedules on Hobby (sub-daily needs Pro), so the 15-minute tick comes from a free **Cloudflare Worker** in `cloudflare-cron/` (deployed as `local-action-email-pinger`, schedule `*/15 * * * *`). It pings `GET /api/cron/send?secret=CRON_SECRET` — the endpoint enforces the daily cap and spacing, so the worker is a dumb trigger. If you ever move to Vercel Pro, you can drop the worker and set `vercel.json` to `"schedule": "*/15 * * * *"`. The dashboard "Run scheduler now" button also sends a single due email per click using the same logic.
+
+## Experiment (variant rotation)
+
+- Email page → Variant Experiment: edit S1–S5 subjects and B1–B5 HTML bodies (labels, content, on/off), global signature, live previews, combination test-send. No deploy needed to edit copy.
+- Rotation is balanced least-used-combination: every active S×B pair sends equally often (25 combos → each ×4 per 100 sends), random tie-break. Assignment is stored on the contact, so failures/retries keep the same pair.
+- Every send logs campaign + variant IDs/labels + immutable snapshots. Bodies support `{{business_name}}` `{{trade}}` `{{email}}` `{{website}}` `{{city}}` `{{country}}` (HTML-escaped in HTML bodies); the signature is auto-appended with a plain-text fallback generated automatically.
+- No open/click tracking, no pixels, no link rewriting.
+
+## Reply tracking (IMAP)
+
+- Set the `IMAP_*` env vars, then Settings → "Test IMAP connection". The Cloudflare worker (`cloudflare-cron/`) also pings `GET /api/cron/replies` every 15 min; first sync establishes a UID baseline (imports nothing), "Backfill 30 days" pulls recent history explicitly.
+- Matching: `In-Reply-To`/`References` vs stored SMTP Message-ID first, sender-address fallback second (`message_id` / `sender_fallback` / `unmatched` recorded). Duplicates impossible via unique inbound Message-ID. Auto-submitted / precedence / OOO patterns are classified `automatic` and excluded from genuine reply rates.
+- Replies page: filters (campaign, variant, classification, search), detail view with the exact original send, manual classification (positive/negative/other/automatic/unclassified).
+- Results page: subject, body and S×B combination tables + 5×5 matrix, reply rate = unique replied contacts / sent. Without IMAP configured, sending works normally and reply pages show "not configured".
 
 ## Deployment notes
 

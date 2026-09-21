@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { isAdminAuthenticated } from "@/lib/auth";
 import { Nav, Card } from "@/components/ui";
 import { SettingsForm } from "@/components/settings-form";
+import { ImapCard } from "@/components/imap-card";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,9 @@ export default async function SettingsPage() {
       <main className="mx-auto max-w-6xl space-y-4 px-4 py-6">
         <Card title="Settings">
           <SettingsForm />
+        </Card>
+        <Card title="Reply tracking (IMAP)">
+          <ImapCard />
         </Card>
       </main>
     </>

@@ -2,6 +2,7 @@ import { parse } from "csv-parse/sync";
 
 export const EXPECTED_COLUMNS = [
   "business_name",
+  "trade",
   "email",
   "website",
   "phone",
@@ -14,6 +15,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export interface ParsedRow {
   business_name: string;
+  trade: string;
   email: string;
   website: string;
   phone: string;
@@ -83,6 +85,7 @@ export function parseCsv(content: string): CsvParseResult {
   }
   const rows: ParsedRow[] = records.map((r, i) => ({
     business_name: (r.business_name ?? "").trim().slice(0, 500),
+    trade: (r.trade ?? "").trim().slice(0, 200),
     email: normalizeEmail(r.email ?? ""),
     website: (r.website ?? "").trim().slice(0, 1000),
     phone: (r.phone ?? "").trim().slice(0, 100),
@@ -95,5 +98,5 @@ export function parseCsv(content: string): CsvParseResult {
 }
 
 export function csvTemplate(): string {
-  return "business_name,email,website,phone,google_maps_url,city,country\nExample Business,hello@example.com,https://example.com,+1 555 0100,https://maps.google.com/?q=Example,Berlin,Germany\n";
+  return "business_name,trade,email,website,phone,google_maps_url,city,country\nExample Business,plumber,hello@example.com,https://example.com,+1 555 0100,https://maps.google.com/?q=Example,Berlin,Germany\n";
 }

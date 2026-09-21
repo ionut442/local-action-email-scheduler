@@ -17,10 +17,12 @@ export async function GET() {
       rows[0] ?? {
         subject: "",
         body: "",
-        senderName: "LocalAction",
+        senderName: "Denis Oproiu",
         dailyLimit: 30,
         sendingEnabled: false,
         bodyIsHtml: false,
+        signatureHtml: "",
+        signatureText: "",
       }
     );
   } catch (err) {
@@ -42,6 +44,8 @@ export async function POST(req: Request) {
     dailyLimit?: number;
     sendingEnabled?: boolean;
     bodyIsHtml?: boolean;
+    signatureHtml?: string;
+    signatureText?: string;
   };
   try {
     data = (await req.json()) as typeof data;
@@ -51,10 +55,12 @@ export async function POST(req: Request) {
 
   const subject = String(data.subject ?? "");
   const body = String(data.body ?? "");
-  const senderName = String(data.senderName ?? "LocalAction").slice(0, 200) || "LocalAction";
+  const senderName = String(data.senderName ?? "Denis Oproiu").slice(0, 200) || "Denis Oproiu";
   const dailyLimit = Number(data.dailyLimit);
   const sendingEnabled = data.sendingEnabled === true;
   const bodyIsHtml = data.bodyIsHtml === true;
+  const signatureHtml = String(data.signatureHtml ?? "").slice(0, 5000);
+  const signatureText = String(data.signatureText ?? "").slice(0, 2000);
 
   if (subject.length > 500) {
     return Response.json({ error: "Subject too long (max 500 chars)." }, { status: 400 });
@@ -81,11 +87,13 @@ export async function POST(req: Request) {
         dailyLimit,
         sendingEnabled,
         bodyIsHtml,
+        signatureHtml,
+        signatureText,
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
         target: emailSettings.id,
-        set: { subject, body, senderName, dailyLimit, sendingEnabled, bodyIsHtml, updatedAt: new Date() },
+        set: { subject, body, senderName, dailyLimit, sendingEnabled, bodyIsHtml, signatureHtml, signatureText, updatedAt: new Date() },
       });
     return Response.json({ ok: true });
   } catch (err) {
