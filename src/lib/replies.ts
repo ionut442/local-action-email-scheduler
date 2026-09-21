@@ -65,6 +65,7 @@ export function isAutomaticReply(input: {
 
 export function snippetFromText(raw: string): string {
   return raw
+    .slice(0, FETCH_TEXT_BYTES * 2)
     .replace(/<[^>]*>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
@@ -100,14 +101,30 @@ const HEADER_PART =
   "HEADER.FIELDS (FROM TO SUBJECT DATE MESSAGE-ID IN-REPLY-TO REFERENCES AUTO-SUBMITTED PRECEDENCE X-AUTOREPLY X-AUTORESPOND)";
 
 function fetchCandidates(imap: Imap, uids: number[]): Promise<InboundCandidate[]> {
+  return fetchCandidatesWith(imap, uids, true).catch((err) => {
+    // Some IMAP servers reject partial body ranges (BODY[TEXT]<0.N>).
+    // Fall back to the full text part and truncate client-side.
+    if (/invalid body/i.test(err instanceof Error ? err.message : String(err))) {
+      return fetchCandidatesWith(imap, uids, false);
+    }
+    throw err;
+  });
+}
+
+function fetchCandidatesWith(
+  imap: Imap,
+  uids: number[],
+  partial: boolean
+): Promise<InboundCandidate[]> {
   return new Promise((resolve, reject) => {
     const out: InboundCandidate[] = [];
     if (uids.length === 0) {
       resolve(out);
       return;
     }
+    const textPart = partial ? `BODY.PEEK[TEXT]<0.${FETCH_TEXT_BYTES}>` : "BODY.PEEK[TEXT]";
     const fetcher = imap.fetch(uids, {
-      bodies: [HEADER_PART, `BODY.PEEK[TEXT]<0.${FETCH_TEXT_BYTES}>`],
+      bodies: [HEADER_PART, textPart],
       struct: false,
     });
     fetcher.on("message", (msg, seqno) => {
