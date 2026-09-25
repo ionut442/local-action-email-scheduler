@@ -86,7 +86,7 @@ At the default limit of 30 this averages ~48 min between emails (38–58 min wit
 
 - Email page → Variant Experiment: edit S1–S5 subjects and B1–B5 HTML bodies (labels, content, on/off), global signature, live previews, combination test-send. No deploy needed to edit copy.
 - Rotation is balanced least-used-combination: every active S×B pair sends equally often (25 combos → each ×4 per 100 sends), random tie-break. Assignment is stored on the contact, so failures/retries keep the same pair.
-- Every send logs campaign + variant IDs/labels + immutable snapshots. Bodies support `{{business_name}}` `{{trade}}` `{{email}}` `{{website}}` `{{city}}` `{{country}}` (HTML-escaped in HTML bodies); the signature is auto-appended with a plain-text fallback generated automatically.
+- Every send logs campaign + variant IDs/labels + immutable snapshots. Bodies support `{{business_name}}` `{{trade}}` `{{a_trade}}` (smart "a"/"an" for the trade) `{{email}}` `{{website}}` `{{city}}` `{{country}}` (HTML-escaped in HTML bodies); the signature is auto-appended with a plain-text fallback generated automatically.
 - No open/click tracking, no pixels, no link rewriting.
 
 ## Reply tracking (IMAP)

@@ -5,6 +5,8 @@ import {
   renderTemplate,
   renderTemplateHtml,
   htmlToText,
+  indefiniteArticle,
+  aTrade,
 } from "../src/lib/template";
 import {
   normalizeMessageId,
@@ -99,6 +101,28 @@ check(
 check(
   "bold/italic/link/lists survive",
   renderTemplateHtml("<p><strong>B</strong> <em>I</em> <a href=\"https://x.co\">L</a></p><ul><li>one</li></ul>", evil).includes("<strong>B</strong>")
+);
+
+// --- Smart article {{a_trade}} ---
+check("an electrician", aTrade("electrician") === "an electrician");
+check("a plumber", aTrade("plumber") === "a plumber");
+check("an architect", aTrade("architect") === "an architect");
+check("a roofer", aTrade("  roofer ") === "a roofer");
+check("an HVAC technician (acronym)", aTrade("HVAC technician") === "an HVAC technician");
+check("a GC (acronym, consonant sound)", aTrade("GC") === "a GC");
+check("empty trade renders empty", aTrade("") === "" && aTrade(null) === "");
+check("indefiniteArticle empty defaults to a", indefiniteArticle("") === "a");
+check(
+  "S2 with {{a_trade}}",
+  renderTemplate("Could I get your perspective as {{a_trade}}?", {
+    ...evil,
+    trade: "electrician",
+  }) === "Could I get your perspective as an electrician?"
+);
+check(
+  "{{a_trade}} escaped in HTML",
+  renderTemplateHtml("<p>{{a_trade}}</p>", { ...evil, trade: "plumber" }) ===
+    "<p>a plumber</p>"
 );
 
 // --- Reply matching helpers ---

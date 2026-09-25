@@ -1,6 +1,7 @@
 export const PLACEHOLDERS = [
   "{{business_name}}",
   "{{trade}}",
+  "{{a_trade}}",
   "{{email}}",
   "{{website}}",
   "{{city}}",
@@ -16,10 +17,36 @@ export interface TemplateVars {
   country?: string | null;
 }
 
+/**
+ * Smart indefinite article for a trade value: "an electrician", "a plumber",
+ * "an HVAC technician". Judged by pronunciation: leading vowel → "an";
+ * all-caps acronyms by how the first letter is spoken (A,E,F,H,I,L,M,N,O,R,S,X
+ * start with a vowel sound). Known English edge cases this does not catch:
+ * "yoo"-sounding U words (utility → "an"), "one-…" words and leading digits.
+ * Empty trade renders as "" (same as every other empty placeholder).
+ */
+const VOWEL_SOUND_LETTERS = new Set(["A", "E", "F", "H", "I", "L", "M", "N", "O", "R", "S", "X"]);
+
+export function indefiniteArticle(word: string): "a" | "an" {
+  const w = (word ?? "").trim();
+  if (!w) return "a";
+  const token = w.split(/\s+/)[0].replace(/\./g, "");
+  if (/^[A-Z]{2,}$/.test(token)) {
+    return VOWEL_SOUND_LETTERS.has(token[0]) ? "an" : "a";
+  }
+  return "aeiou".includes(w[0].toLowerCase()) ? "an" : "a";
+}
+
+export function aTrade(trade: string | null | undefined): string {
+  const t = (trade ?? "").trim();
+  return t ? `${indefiniteArticle(t)} ${t}` : "";
+}
+
 export function renderTemplate(template: string, vars: TemplateVars): string {
   const safe: Record<string, string> = {
     business_name: (vars.business_name ?? "").trim(),
     trade: (vars.trade ?? "").trim(),
+    a_trade: aTrade(vars.trade),
     email: (vars.email ?? "").trim(),
     website: (vars.website ?? "").trim(),
     city: (vars.city ?? "").trim(),
@@ -40,6 +67,7 @@ export function renderTemplateHtml(template: string, vars: TemplateVars): string
   const safe: Record<string, string> = {
     business_name: escapeHtml((vars.business_name ?? "").trim()),
     trade: escapeHtml((vars.trade ?? "").trim()),
+    a_trade: escapeHtml(aTrade(vars.trade)),
     email: escapeHtml((vars.email ?? "").trim()),
     website: escapeHtml((vars.website ?? "").trim()),
     city: escapeHtml((vars.city ?? "").trim()),
