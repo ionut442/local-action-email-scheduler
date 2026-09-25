@@ -36,6 +36,16 @@ export interface SchedulerResult {
 }
 
 /**
+ * Weekend pause: no automatic or manual sends on Saturday/Sunday (UTC).
+ * Monday's first run resumes naturally since the pacing timestamp is then
+ * in the past.
+ */
+export function isWeekend(date: Date = new Date()): boolean {
+  const day = date.getUTCDay();
+  return day === 0 || day === 6;
+}
+
+/**
  * Next send time = now + (1440 / dailyLimit) ± up-to-10-min jitter.
  * Spreads the daily quota across ~24h so emails go out ~48 min apart
  * (at the default limit of 30) instead of in one burst.
@@ -74,6 +84,16 @@ export async function runScheduler(): Promise<SchedulerResult> {
     return {
       ran: false,
       reason: "sending_disabled",
+      sent: 0,
+      failed: 0,
+      errors: [],
+    };
+  }
+
+  if (isWeekend()) {
+    return {
+      ran: false,
+      reason: "weekend_pause",
       sent: 0,
       failed: 0,
       errors: [],

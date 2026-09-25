@@ -77,6 +77,10 @@ export default async function DashboardPage() {
                   ~{Math.round(1440 / Math.max(1, s?.dailyLimit ?? 30))} min apart (±10 min)
                 </dd>
               </div>
+              <div className="flex gap-2">
+                <dt className="w-28 text-zinc-500">Weekends</dt>
+                <dd className="font-medium">Paused Sat–Sun (UTC)</dd>
+              </div>
               {Boolean(s?.sendingEnabled) && s?.nextSendAt && (
                 <div className="flex gap-2">
                   <dt className="w-28 text-zinc-500">Next email</dt>

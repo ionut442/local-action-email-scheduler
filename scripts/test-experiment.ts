@@ -1,6 +1,7 @@
 // Experiment system tests (pure functions, no DB).
 // Run: npx tsx scripts/test-experiment.ts
 import { pickLeastUsedCombo } from "../src/lib/experiment";
+import { isWeekend } from "../src/lib/scheduler";
 import {
   renderTemplate,
   renderTemplateHtml,
@@ -102,6 +103,16 @@ check(
   "bold/italic/link/lists survive",
   renderTemplateHtml("<p><strong>B</strong> <em>I</em> <a href=\"https://x.co\">L</a></p><ul><li>one</li></ul>", evil).includes("<strong>B</strong>")
 );
+
+// --- Weekend pause ---
+const saturday = new Date("2026-09-26T12:00:00Z");
+const sunday = new Date("2026-09-27T12:00:00Z");
+const monday = new Date("2026-09-28T12:00:00Z");
+const friday = new Date("2026-09-25T23:59:59Z");
+check("saturday is weekend", isWeekend(saturday));
+check("sunday is weekend", isWeekend(sunday));
+check("monday is not weekend", !isWeekend(monday));
+check("friday is not weekend", !isWeekend(friday));
 
 // --- Smart article {{a_trade}} ---
 check("an electrician", aTrade("electrician") === "an electrician");
